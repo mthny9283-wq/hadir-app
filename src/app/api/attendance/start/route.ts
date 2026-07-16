@@ -60,20 +60,18 @@ export async function POST(request: NextRequest) {
         orderBy: { name: "asc" },
       });
 
-      const attendanceRecords = await Promise.all(
-        students.map((student) =>
-          tx.attendance.create({
-            data: {
-              lectureId: lecture.id,
-              studentId: student.id,
-              status: "absent",
-            },
-          })
-        )
-      );
+      if (students.length > 0) {
+        await tx.attendance.createMany({
+          data: students.map((student) => ({
+            lectureId: lecture.id,
+            studentId: student.id,
+            status: "absent",
+          })),
+        });
+      }
 
-      return { lecture, students, attendanceRecords };
-    });
+      return { lecture, students };
+    }, { timeout: 30000 });
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
