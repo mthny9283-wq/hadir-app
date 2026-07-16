@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  id         Int          @id @default(autoincrement())
+  name       String
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  attendance Attendance[]
+
+  @@index([name])
+}
+
+model Subject {
+  id        Int       @id @default(autoincrement())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  lectures  Lecture[]
+
+  @@index([name])
+}
+
+model Lecture {
+  id            Int          @id @default(autoincrement())
+  subjectId     Int
+  lectureNumber Int
+  date          DateTime
+  isCompleted   Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  attendance    Attendance[]
+  subject       Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, lectureNumber])
+  @@index([subjectId])
+  @@index([date])
+}
+
+model Attendance {
+  id        Int      @id @default(autoincrement())
+  lectureId Int
+  studentId Int
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lecture   Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([lectureId, studentId])
+  @@index([lectureId])
+  @@index([studentId])
+  @@index([status])
+}
+
+model User {
+  id                Int                 @id @default(autoincrement())
+  username          String              @unique
+  password          String
+  role              String              @default("user")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  securityQuestions SecurityQuestion[]
+  resetCodes        PasswordResetCode[]
+}
+
+model SecurityQuestion {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  question  String
+  answer    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetCode {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([code])
+}
