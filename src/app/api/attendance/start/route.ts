@@ -3,10 +3,12 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const LECTURE_DURATION_MS = 3 * 60 * 60 * 1000;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { subjectId, date, lectureNumber } = body;
+    const { subjectId, date, lectureNumber, sessionId } = body;
 
     if (!subjectId || typeof subjectId !== "number") {
       return NextResponse.json(
@@ -45,6 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     const lectureDate = date ? new Date(date) : new Date();
+    const expiresAt = new Date(Date.now() + LECTURE_DURATION_MS);
 
     const result = await prisma.$transaction(async (tx) => {
       const lecture = await tx.lecture.create({
@@ -53,6 +56,8 @@ export async function POST(request: NextRequest) {
           lectureNumber: nextLectureNumber,
           date: lectureDate,
           isCompleted: false,
+          createdBy: sessionId || null,
+          expiresAt,
         },
       });
 

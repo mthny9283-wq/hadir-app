@@ -74,7 +74,9 @@ export default function LoginPage() {
         </div>
 
         <div className="rounded-3xl border border-white/20 bg-white/10 p-8 shadow-2xl backdrop-blur-xl">
-          <h2 className="mb-6 text-center text-xl font-bold text-white">تسجيل الدخول</h2>
+          <h2 className="mb-6 text-center text-xl font-bold text-white">
+            تسجيل الدخول
+          </h2>
 
           {error && (
             <div className="mb-4 rounded-xl border border-red-300/30 bg-red-500/20 px-4 py-3 text-center text-sm text-red-100 backdrop-blur-sm">
@@ -117,7 +119,11 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 transition-colors hover:text-white/80"
                 >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -161,23 +167,50 @@ export default function LoginPage() {
 
       <style jsx global>{`
         @keyframes float {
-          0%, 100% { transform: translateY(0px) translateX(0px); }
-          25% { transform: translateY(-20px) translateX(10px); }
-          50% { transform: translateY(-10px) translateX(-5px); }
-          75% { transform: translateY(-25px) translateX(5px); }
+          0%,
+          100% {
+            transform: translateY(0px) translateX(0px);
+          }
+          25% {
+            transform: translateY(-20px) translateX(10px);
+          }
+          50% {
+            transform: translateY(-10px) translateX(-5px);
+          }
+          75% {
+            transform: translateY(-25px) translateX(5px);
+          }
         }
         @keyframes float-delayed {
-          0%, 100% { transform: translateY(0px) translateX(0px); }
-          33% { transform: translateY(-15px) translateX(-10px); }
-          66% { transform: translateY(-25px) translateX(8px); }
+          0%,
+          100% {
+            transform: translateY(0px) translateX(0px);
+          }
+          33% {
+            transform: translateY(-15px) translateX(-10px);
+          }
+          66% {
+            transform: translateY(-25px) translateX(8px);
+          }
         }
         @keyframes float-slow {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-30px); }
+          0%,
+          100% {
+            transform: translateY(0px);
+          }
+          50% {
+            transform: translateY(-30px);
+          }
         }
-        .animate-float { animation: float 6s ease-in-out infinite; }
-        .animate-float-delayed { animation: float-delayed 8s ease-in-out infinite; }
-        .animate-float-slow { animation: float-slow 10s ease-in-out infinite; }
+        .animate-float {
+          animation: float 6s ease-in-out infinite;
+        }
+        .animate-float-delayed {
+          animation: float-delayed 8s ease-in-out infinite;
+        }
+        .animate-float-slow {
+          animation: float-slow 10s ease-in-out infinite;
+        }
       `}</style>
     </div>
   );

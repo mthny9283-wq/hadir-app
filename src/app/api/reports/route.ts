@@ -75,6 +75,10 @@ export async function GET(request: NextRequest) {
       const presentCount = studentAttendance.filter(
         (a) => a.status === "present"
       ).length;
+      const guestCount = studentAttendance.filter(
+        (a) => a.status === "guest"
+      ).length;
+      const absentCount = lectures.length - presentCount - guestCount;
       const percentage =
         lectures.length > 0
           ? Math.round((presentCount / lectures.length) * 100)
@@ -85,7 +89,8 @@ export async function GET(request: NextRequest) {
         name: student.name,
         attendance: studentAttendance,
         presentCount,
-        absentCount: lectures.length - presentCount,
+        absentCount,
+        guestCount,
         percentage,
       };
     });

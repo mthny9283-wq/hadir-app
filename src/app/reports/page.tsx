@@ -23,7 +23,7 @@ interface Lecture {
 
 interface StudentAttendance {
   lectureNumber: number;
-  status: "present" | "absent";
+  status: "present" | "absent" | "guest";
 }
 
 interface Student {
@@ -32,6 +32,7 @@ interface Student {
   percentage: number;
   presentCount: number;
   absentCount: number;
+  guestCount: number;
 }
 
 interface Subject {
@@ -135,7 +136,8 @@ export default function ReportsPage() {
     );
     if (attIdx >= 0) {
       const att = { ...attendance[attIdx] };
-      att.status = att.status === "present" ? "absent" : "present";
+      const cycle: Record<string, "present" | "absent" | "guest"> = { present: "absent", absent: "guest", guest: "present" };
+      att.status = cycle[att.status] || "present";
       attendance[attIdx] = att;
     }
     student.attendance = attendance;
@@ -144,6 +146,9 @@ export default function ReportsPage() {
     ).length;
     student.absentCount = attendance.filter(
       (a) => a.status === "absent",
+    ).length;
+    student.guestCount = attendance.filter(
+      (a) => a.status === "guest",
     ).length;
     student.percentage =
       newData.lectures.length > 0
@@ -173,6 +178,10 @@ export default function ReportsPage() {
       );
       const totalAbsent = editableData.students.reduce(
         (s, st) => s + st.absentCount,
+        0,
+      );
+      const totalGuest = editableData.students.reduce(
+        (s, st) => s + st.guestCount,
         0,
       );
       const totalPct = (
@@ -239,6 +248,7 @@ export default function ReportsPage() {
           ...editableData.lectures.map((l) => `م${l.lectureNumber}`),
           "حضور",
           "غياب",
+          "مستاذن",
         ],
       ];
 
@@ -250,10 +260,11 @@ export default function ReportsPage() {
             const att = s.attendance.find(
               (a) => a.lectureNumber === l.lectureNumber,
             );
-            return att?.status === "present" ? "✓" : "✗";
+            return att?.status === "present" ? "✓" : att?.status === "guest" ? "م" : "✗";
           }),
           String(s.presentCount),
           String(s.absentCount),
+          String(s.guestCount),
         ]);
       });
 
@@ -266,6 +277,7 @@ export default function ReportsPage() {
         ...Array(lecCount).fill(""),
         String(totalPresent),
         String(totalAbsent),
+        String(totalGuest),
       ]);
       rows.push([]);
       rows.push(["", "", "", ...Array(lecCount).fill(""), "نسبة الحضور"]);
@@ -288,6 +300,7 @@ export default function ReportsPage() {
           .name{text-align:right;font-weight:bold}
           .present{color:#16a34a;font-weight:bold}
           .absent{color:#dc2626;font-weight:bold}
+          .guest{color:#9333ea;font-weight:bold}
           .total-row td{background:#e2e8f0;font-weight:bold}
           .pct-row td{background:#dbeafe;font-weight:bold;color:#1d4ed8}
         </style></head><body><table>`;
@@ -317,7 +330,7 @@ export default function ReportsPage() {
       editableData.lectures.forEach((l) => {
         html += `<th style="width:${lecColWidth}%">م${l.lectureNumber}</th>`;
       });
-      html += `<th style="width:6%">حضور</th><th style="width:6%">غياب</th></tr>`;
+      html += `<th style="width:6%">حضور</th><th style="width:6%">غياب</th><th style="width:6%">مستاذن</th></tr>`;
 
       editableData.students.forEach((s, idx) => {
         html += `<tr><td class="serial">${idx + 1}</td><td class="name" style="text-align:right">${s.name}</td>`;
@@ -326,13 +339,14 @@ export default function ReportsPage() {
             (a) => a.lectureNumber === l.lectureNumber,
           );
           const isP = att?.status === "present";
-          html += `<td class="${isP ? "present" : "absent"}">${isP ? "✓" : "✗"}</td>`;
+          const isG = att?.status === "guest";
+          html += `<td class="${isP ? "present" : isG ? "guest" : "absent"}">${isP ? "✓" : isG ? "م" : "✗"}</td>`;
         });
-        html += `<td>${s.presentCount}</td><td>${s.absentCount}</td></tr>`;
+        html += `<td>${s.presentCount}</td><td>${s.absentCount}</td><td>${s.guestCount}</td></tr>`;
       });
 
-      html += `<tr><td colspan="${2 + lecCount}"></td><td>الإجمالي</td><td>${totalPresent}</td><td>${totalAbsent}</td></tr>`;
-      html += `<tr><td colspan="${2 + lecCount}"></td><td>نسبة الحضور</td><td colspan="2">${totalPct}%</td></tr>`;
+      html += `<tr><td colspan="${2 + lecCount}"></td><td>الإجمالي</td><td>${totalPresent}</td><td>${totalAbsent}</td><td>${totalGuest}</td></tr>`;
+      html += `<tr><td colspan="${2 + lecCount}"></td><td>نسبة الحضور</td><td colspan="3">${totalPct}%</td></tr>`;
 
       html += `</table></body></html>`;
 
@@ -376,6 +390,10 @@ export default function ReportsPage() {
         (s, st) => s + st.absentCount,
         0,
       );
+      const totalGuest = editableData.students.reduce(
+        (s, st) => s + st.guestCount,
+        0,
+      );
       const totalPct = (
         (totalPresent / (editableData.students.length * lecCount)) *
         100
@@ -396,6 +414,7 @@ export default function ReportsPage() {
         tr:nth-child(even){background:#f3f4f6}
         .present{color:#16a34a;font-weight:bold}
         .absent{color:#dc2626;font-weight:bold}
+        .guest{color:#9333ea;font-weight:bold}
         .footer{margin-top:20px;text-align:center;font-size:11px;color:#666;border-top:1px solid #ddd;padding-top:10px}
       </style></head><body>
       <div class="header">
@@ -423,7 +442,7 @@ export default function ReportsPage() {
       editableData.lectures.forEach((l) => {
         html += `<th>م${l.lectureNumber}</th>`;
       });
-      html += `<th>حضور</th><th>غياب</th></tr></thead><tbody>`;
+      html += `<th>حضور</th><th>غياب</th><th>مستاذن</th></tr></thead><tbody>`;
       editableData.students.forEach((s, idx) => {
         html += `<tr><td>${idx + 1}</td><td style="text-align:right">${s.name}</td>`;
         editableData.lectures.forEach((l) => {
@@ -431,12 +450,13 @@ export default function ReportsPage() {
             (a) => a.lectureNumber === l.lectureNumber,
           );
           const isP = att?.status === "present";
-          html += `<td class="${isP ? "present" : "absent"}">${isP ? "✓" : "✗"}</td>`;
+          const isG = att?.status === "guest";
+          html += `<td class="${isP ? "present" : isG ? "guest" : "absent"}">${isP ? "✓" : isG ? "م" : "✗"}</td>`;
         });
-        html += `<td>${s.presentCount}</td><td>${s.absentCount}</td></tr>`;
+        html += `<td>${s.presentCount}</td><td>${s.absentCount}</td><td>${s.guestCount}</td></tr>`;
       });
-      html += `<tr style="font-weight:bold;background:#e2e8f0"><td colspan="2">الإجمالي</td>${Array(lecCount).fill("<td></td>").join("")}<td>${totalPresent}</td><td>${totalAbsent}</td></tr>`;
-      html += `<tr style="background:#dbeafe"><td colspan="${2 + lecCount}" style="font-weight:bold;text-align:right">نسبة الحضور</td><td colspan="2" style="font-weight:bold;color:#1d4ed8">${totalPct}%</td></tr>`;
+      html += `<tr style="font-weight:bold;background:#e2e8f0"><td colspan="2">الإجمالي</td>${Array(lecCount).fill("<td></td>").join("")}<td>${totalPresent}</td><td>${totalAbsent}</td><td>${totalGuest}</td></tr>`;
+      html += `<tr style="background:#dbeafe"><td colspan="${2 + lecCount}" style="font-weight:bold;text-align:right">نسبة الحضور</td><td colspan="3" style="font-weight:bold;color:#1d4ed8">${totalPct}%</td></tr>`;
       html += `</tbody></table>
       <div class="footer">نظام "حاضر | HADIR" — إدارة حضور وغياب الطلاب</div>
       </body></html>`;
@@ -682,6 +702,9 @@ export default function ReportsPage() {
                       <th className="px-1.5 sm:px-2 py-2.5 text-center text-[11px] sm:text-xs font-semibold text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-slate-600 whitespace-nowrap">
                         غ
                       </th>
+                      <th className="px-1.5 sm:px-2 py-2.5 text-center text-[11px] sm:text-xs font-semibold text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-slate-600 whitespace-nowrap">
+                        م
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
@@ -705,6 +728,7 @@ export default function ReportsPage() {
                             (a) => a.lectureNumber === lecture.lectureNumber,
                           );
                           const isPresent = att?.status === "present";
+                          const isGuest = att?.status === "guest";
                           return (
                             <td
                               key={lecture.id}
@@ -718,10 +742,12 @@ export default function ReportsPage() {
                                 className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-lg text-xs sm:text-sm font-bold cursor-pointer transition-all active:scale-90 ${
                                   isPresent
                                     ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100"
+                                    : isGuest
+                                    ? "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-100"
                                     : "bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 hover:bg-red-100"
                                 }`}
                               >
-                                {isPresent ? "✓" : "✗"}
+                                {isPresent ? "✓" : isGuest ? "م" : "✗"}
                               </button>
                             </td>
                           );
@@ -734,6 +760,11 @@ export default function ReportsPage() {
                         <td className="px-1.5 sm:px-2 py-2.5 text-center">
                           <span className="text-red-500 dark:text-red-400 font-semibold">
                             {student.absentCount}
+                          </span>
+                        </td>
+                        <td className="px-1.5 sm:px-2 py-2.5 text-center">
+                          <span className="text-purple-600 dark:text-purple-400 font-semibold">
+                            {student.guestCount}
                           </span>
                         </td>
                       </tr>
@@ -781,6 +812,14 @@ export default function ReportsPage() {
                           )}
                         </span>
                       </td>
+                      <td className="px-1.5 sm:px-2 py-2.5 text-center">
+                        <span className="font-bold text-purple-600 dark:text-purple-400">
+                          {editableData.students.reduce(
+                            (s, st) => s + st.guestCount,
+                            0,
+                          )}
+                        </span>
+                      </td>
                     </tr>
                     <tr className="bg-blue-50 dark:bg-blue-900/30 border-t border-blue-200 dark:border-blue-800">
                       <td
@@ -791,7 +830,7 @@ export default function ReportsPage() {
                       </td>
                       <td
                         className="px-1.5 sm:px-2 py-2.5 text-center"
-                        colSpan={2}
+                        colSpan={3}
                       >
                         <span className="font-bold text-blue-700 dark:text-blue-400">
                           {(

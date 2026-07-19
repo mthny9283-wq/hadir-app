@@ -34,9 +34,15 @@ model Lecture {
   lectureNumber Int
   date          DateTime
   isCompleted   Boolean      @default(false)
+  createdBy     String?
+  closedBy      String?
+  closedAt      DateTime?
+  expiresAt     DateTime?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   attendance    Attendance[]
+  auditLogs     AuditLog[]
+  drafts        DraftSession[]
   subject       Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   @@unique([subjectId, lectureNumber])
@@ -45,19 +51,57 @@ model Lecture {
 }
 
 model Attendance {
-  id        Int      @id @default(autoincrement())
-  lectureId Int
-  studentId Int
-  status    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  lecture   Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id              Int       @id @default(autoincrement())
+  lectureId       Int
+  studentId       Int
+  status          String
+  lockedBy        String?
+  lockedAt        DateTime?
+  lockedBySession String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  auditLogs       AuditLog[]
+  lecture         Lecture   @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([lectureId, studentId])
   @@index([lectureId])
   @@index([studentId])
   @@index([status])
+  @@index([lockedBy])
+}
+
+model AuditLog {
+  id           Int       @id @default(autoincrement())
+  lectureId    Int
+  attendanceId Int?
+  action       String
+  oldStatus    String?
+  newStatus    String?
+  performedBy  String?
+  performedAt  DateTime  @default(now())
+  lecture      Lecture   @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  attendance   Attendance? @relation(fields: [attendanceId], references: [id], onDelete: SetNull)
+
+  @@index([lectureId])
+  @@index([attendanceId])
+  @@index([performedBy])
+  @@index([performedAt])
+}
+
+model DraftSession {
+  id            Int      @id @default(autoincrement())
+  lectureId     Int
+  sessionId     String
+  savedData     Json
+  studentIndex  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lecture       Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+
+  @@unique([lectureId, sessionId])
+  @@index([lectureId])
+  @@index([sessionId])
 }
 
 model User {

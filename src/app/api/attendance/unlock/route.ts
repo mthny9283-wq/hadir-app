@@ -3,12 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const LOCK_TIMEOUT_MS = 30 * 1000;
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { attendanceId, status, sessionId } = body;
+    const { attendanceId, sessionId } = body;
 
     if (!attendanceId || typeof attendanceId !== "number") {
       return NextResponse.json(
@@ -17,16 +15,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!status || !["present", "absent", "pending"].includes(status)) {
+    if (!sessionId || typeof sessionId !== "string") {
       return NextResponse.json(
-        { error: "status must be 'present', 'absent', or 'pending'" },
+        { error: "sessionId is required and must be a string" },
         { status: 400 }
       );
     }
 
     const existing = await prisma.attendance.findUnique({
       where: { id: attendanceId },
-      include: { lecture: true },
     });
 
     if (!existing) {
@@ -36,32 +33,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (existing.lecture.isCompleted) {
+    if (existing.lockedBy && existing.lockedBy !== sessionId) {
       return NextResponse.json(
-        { error: "Cannot update attendance for a completed lecture" },
-        { status: 400 }
+        { error: "Cannot unlock a student locked by another user" },
+        { status: 403 }
       );
-    }
-
-    if (existing.lockedBy && sessionId && existing.lockedBy !== sessionId) {
-      if (existing.lockedAt) {
-        const elapsed = Date.now() - new Date(existing.lockedAt).getTime();
-        if (elapsed < LOCK_TIMEOUT_MS) {
-          return NextResponse.json(
-            {
-              error: "Student is locked by another user",
-              lockedBy: existing.lockedBy,
-            },
-            { status: 409 }
-          );
-        }
-      }
     }
 
     const updated = await prisma.attendance.update({
       where: { id: attendanceId },
       data: {
-        status,
         lockedBy: null,
         lockedAt: null,
         lockedBySession: null,
@@ -71,7 +52,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json(
-      { error: "Failed to edit attendance" },
+      { error: "Failed to unlock student" },
       { status: 500 }
     );
   }
