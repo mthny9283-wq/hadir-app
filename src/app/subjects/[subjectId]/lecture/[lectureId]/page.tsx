@@ -13,6 +13,7 @@ import {
   Save,
   Sparkles,
   AlertCircle,
+  Play,
 } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -213,6 +214,18 @@ export default function LectureReviewPage() {
         description={`${lecture.subject.name} — ${new Date(lecture.date).toLocaleDateString("ar-SA", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`}
         backButton
       />
+
+      {!lecture.isCompleted && (
+        <div className="mb-6">
+          <button
+            onClick={() => router.push(`/attendance/${subjectId}/session/${lecture.id}`)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm transition-colors cursor-pointer"
+          >
+            <Play className="h-4 w-4" />
+            دخول وضع التحضير
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <div className="rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">

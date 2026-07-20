@@ -8,7 +8,7 @@ import Card from "@/components/ui/Card";
 import Skeleton from "@/components/ui/Skeleton";
 import { addToast } from "@/components/ui/Toast";
 import { useAttendanceRealtime } from "@/hooks/useAttendanceRealtime";
-import { Save, Clock, Sparkles, Lock, AlertTriangle } from "lucide-react";
+import { Save, Clock, Sparkles, Lock, AlertTriangle, List } from "lucide-react";
 
 interface Student {
   id: string;
@@ -38,12 +38,6 @@ interface LectureData {
   attendance: AttendanceRecord[];
 }
 
-type StudentStatus = "present" | "absent" | "pending" | "guest" | null;
-
-interface StudentStatusMap {
-  [attendanceId: string]: StudentStatus;
-}
-
 export default function AttendanceSessionPage({
   params,
 }: {
@@ -66,8 +60,6 @@ export default function AttendanceSessionPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [statuses, setStatuses] = useState<StudentStatusMap>({});
-  const [visited, setVisited] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
@@ -101,30 +93,52 @@ export default function AttendanceSessionPage({
     fetchLecture();
   }, [fetchLecture]);
 
-  const sorted = useMemo(() => lecture?.attendance ?? [], [lecture?.attendance]);
-  const current = sorted[currentIndex];
-  const totalStudents = sorted.length;
-  const visitedCount = visited.size;
+  useEffect(() => {
+    if (!lecture || lecture.isCompleted) return;
+    const poll = setInterval(() => {
+      fetch(`/api/attendance/lecture/${lectureId}`)
+        .then((r) => r.json())
+        .then((data: LectureData) => {
+          data.attendance.sort((a, b) =>
+            a.student.name.localeCompare(b.student.name, "ar")
+          );
+          setLecture(data);
+        })
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(poll);
+  }, [lecture?.isCompleted, lectureId]);
 
-  const presentCount = Object.values(statuses).filter((s) => s === "present").length;
-  const absentCount = Object.values(statuses).filter((s) => s === "absent").length;
-  const pendingCount = Object.values(statuses).filter((s) => s === "pending").length;
-  const guestCount = Object.values(statuses).filter((s) => s === "guest").length;
+  useEffect(() => {
+    if (lecture && lecture.isCompleted) {
+      router.replace(`/subjects/${subjectId}/lecture/${lectureId}`);
+    }
+  }, [lecture, subjectId, lectureId, router]);
+
+  const sorted = useMemo(() => lecture?.attendance ?? [], [lecture?.attendance]);
+  const unmarked = useMemo(() => sorted.filter((r) => r.status === "absent"), [sorted]);
+  const current = unmarked[currentIndex];
+  const totalStudents = unmarked.length;
+  const allStudents = sorted.length;
+  const markedCount = allStudents - totalStudents;
+
+  const presentCount = sorted.filter((r) => r.status === "present").length;
+  const absentCount = sorted.filter((r) => r.status === "absent").length;
+  const pendingCount = sorted.filter((r) => r.status === "pending").length;
+  const guestCount = sorted.filter((r) => r.status === "guest").length;
 
   const goToStudent = useCallback(
     (index: number) => {
-      if (index >= 0 && index < totalStudents) {
+      if (index >= 0 && index < unmarked.length) {
         setCurrentIndex(index);
       }
     },
-    [totalStudents]
+    [unmarked.length]
   );
 
   const submitStatus = useCallback(
     async (attendanceId: string, status: "present" | "absent" | "pending" | "guest") => {
       setSubmitting(attendanceId);
-      setStatuses((prev) => ({ ...prev, [attendanceId]: status }));
-      setVisited((prev) => new Set(prev));
       try {
         const res = await fetch("/api/attendance/submit", {
           method: "POST",
@@ -133,30 +147,24 @@ export default function AttendanceSessionPage({
         });
         if (!res.ok) {
           const err = await res.json();
+          if (res.status === 409) {
+            addToast(err.error || "تم تسجيل هذا الطالب بالفعل من مستخدم آخر", "info");
+            await fetchLecture();
+            return;
+          }
           throw new Error(err.error || "فشل في تسجيل الحضور");
         }
-        setVisited((prev) => {
-          const next = new Set(prev);
-          const idx = sorted.findIndex((r) => r.id === attendanceId);
-          if (idx !== -1) next.add(idx);
-          return next;
-        });
-        const idx = sorted.findIndex((r) => r.id === attendanceId);
-        if (idx !== -1 && idx < totalStudents - 1) {
-          setCurrentIndex(idx + 1);
+        await fetchLecture();
+        if (currentIndex >= unmarked.length - 1 && unmarked.length > 1) {
+          setCurrentIndex(Math.max(0, currentIndex - 1));
         }
       } catch (err) {
         addToast(err instanceof Error ? err.message : "حدث خطأ في التسجيل", "error");
-        setStatuses((prev) => {
-          const next = { ...prev };
-          delete next[attendanceId];
-          return next;
-        });
       } finally {
         setSubmitting(null);
       }
     },
-    [sorted, totalStudents, sessionUserId]
+    [unmarked, currentIndex, sessionUserId, fetchLecture, addToast]
   );
 
   const markCurrent = useCallback(
@@ -205,7 +213,7 @@ export default function AttendanceSessionPage({
         body: JSON.stringify({
           lectureId: Number(lectureId),
           sessionId: sessionUserId,
-          savedData: { statuses, visited: Array.from(visited) },
+          savedData: { currentIndex },
           studentIndex: currentIndex,
         }),
       });
@@ -216,7 +224,7 @@ export default function AttendanceSessionPage({
     } finally {
       setSaving(false);
     }
-  }, [lectureId, sessionUserId, statuses, visited, currentIndex, addToast]);
+  }, [lectureId, sessionUserId, currentIndex, addToast]);
 
   useEffect(() => {
     if (loading || !lecture || lecture.isCompleted) return;
@@ -227,11 +235,11 @@ export default function AttendanceSessionPage({
         if (!res.ok) return;
         const data = await res.json();
         if (data.draft) {
-          const savedData = data.draft.savedData as { statuses: StudentStatusMap; visited: number[] };
-          if (savedData.statuses) setStatuses(savedData.statuses);
-          if (savedData.visited) setVisited(new Set(savedData.visited));
-          if (data.draft.studentIndex) setCurrentIndex(data.draft.studentIndex);
-          addToast("تم استرجاع الجلسة المحفوظة", "info");
+          const savedData = data.draft.savedData as { currentIndex?: number };
+          if (savedData?.currentIndex !== undefined) {
+            setCurrentIndex(savedData.currentIndex);
+          }
+          addToast("تم استرجاع الجلسة المحفوظة مع المزامنة", "info");
         }
       } catch {}
     };
@@ -266,15 +274,17 @@ export default function AttendanceSessionPage({
 
   const onAttendanceUpdated = useCallback(
     (update: { id: number; status: string }) => {
-      setStatuses((prev) => ({ ...prev, [String(update.id)]: update.status as StudentStatus }));
-      setVisited((prev) => {
-        const next = new Set(prev);
-        const idx = (lecture?.attendance ?? []).findIndex((r) => r.id === String(update.id));
-        if (idx !== -1) next.add(idx);
-        return next;
+      setLecture((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          attendance: prev.attendance.map((r) =>
+            r.id === String(update.id) ? { ...r, status: update.status } : r
+          ),
+        };
       });
     },
-    [lecture?.attendance]
+    []
   );
 
   const onLectureCompleted = useCallback(() => {
@@ -291,14 +301,12 @@ export default function AttendanceSessionPage({
   useEffect(() => {
     if (
       !showComplete &&
-      totalStudents > 0 &&
-      visited.size === totalStudents &&
-      sorted.every((r) => statuses[r.id] !== undefined) &&
-      pendingCount === 0
+      unmarked.length === 0 &&
+      allStudents > 0
     ) {
       setShowComplete(true);
     }
-  }, [visited, totalStudents, statuses, sorted, showComplete, pendingCount]);
+  }, [unmarked, allStudents, showComplete]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -437,7 +445,7 @@ export default function AttendanceSessionPage({
     );
   }
 
-  const progress = totalStudents > 0 ? (visitedCount / totalStudents) * 100 : 0;
+  const progress = allStudents > 0 ? (markedCount / allStudents) * 100 : 0;
 
   return (
     <AppShell>
@@ -457,6 +465,13 @@ export default function AttendanceSessionPage({
               المحاضرة رقم {lecture.lectureNumber} — {formatDate(lecture.date)}
             </p>
           </div>
+          <button
+            onClick={() => router.push(`/subjects/${subjectId}/lecture/${lectureId}`)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400 text-sm font-medium hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors cursor-pointer"
+          >
+            <List className="h-4 w-4" />
+            <span className="hidden sm:inline">سجل المحاضرة</span>
+          </button>
           <button
             onClick={handleSaveDraft}
             disabled={saving}
@@ -488,10 +503,10 @@ export default function AttendanceSessionPage({
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-600 dark:text-gray-400 font-medium">
-              الطالب {currentIndex + 1} من {totalStudents}
+              {totalStudents > 0 ? `الطالب ${currentIndex + 1} من ${totalStudents}` : "تم تسجيل جميع الطلاب"}
             </span>
             <span className="text-gray-400 dark:text-gray-500">
-              {visitedCount} تم تسجيلهم
+              {markedCount} تم تسجيلهم
             </span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-slate-600 rounded-full h-2.5 overflow-hidden">
@@ -502,7 +517,7 @@ export default function AttendanceSessionPage({
           </div>
         </div>
 
-        {current && (
+        {!lecture.isCompleted && current && (
           <Card className={`flex flex-col items-center py-6 sm:py-10 transition-all duration-300 ${
             isLockedByOther(current) ? "ring-2 ring-amber-400 dark:ring-amber-600" : ""
           }`}>
@@ -518,33 +533,6 @@ export default function AttendanceSessionPage({
               <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 text-xs mt-1">
                 <Lock className="h-3 w-3" />
                 <span>قيد التعديل من مستخدم آخر</span>
-              </div>
-            )}
-            {statuses[current.id] && (
-              <div className="flex items-center gap-2 mt-1 flex-wrap justify-center">
-                <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-500">
-                  {statuses[current.id] === "present" ? "✓ تم التسجيل: حاضر" :
-                   statuses[current.id] === "pending" ? "⏳ تم التسجيل: انتظار" :
-                   statuses[current.id] === "guest" ? "★ تم التسجيل: مستاذن" :
-                   "✗ تم التسجيل: غائب"}
-                </p>
-                {!isDisabled && (
-                  <button
-                    onClick={() => {
-                      const cycle: Record<string, "present" | "absent" | "pending" | "guest"> = {
-                        present: "absent",
-                        absent: "guest",
-                        guest: "pending",
-                        pending: "present",
-                      };
-                      submitStatus(current.id, cycle[statuses[current.id]!] || "present");
-                    }}
-                    disabled={submitting === current.id}
-                    className="text-xs text-blue-600 hover:text-blue-800 underline cursor-pointer disabled:opacity-50"
-                  >
-                    تعديل
-                  </button>
-                )}
               </div>
             )}
 
@@ -601,6 +589,36 @@ export default function AttendanceSessionPage({
           </Card>
         )}
 
+        {lecture.isCompleted && (
+          <Card className="flex flex-col items-center py-10">
+            <Lock className="h-12 w-12 text-gray-400 mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">المحاضرة مكتملة ومغلقة</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">لا يمكن التعديل بعد الإغلاق</p>
+            <div className="flex flex-wrap gap-4 justify-center">
+              <div className="text-center">
+                <span className="text-2xl font-bold text-green-600">{presentCount}</span>
+                <p className="text-xs text-green-600">حاضر</p>
+              </div>
+              <div className="text-center">
+                <span className="text-2xl font-bold text-red-500">{absentCount}</span>
+                <p className="text-xs text-red-500">غائب</p>
+              </div>
+              {guestCount > 0 && (
+                <div className="text-center">
+                  <span className="text-2xl font-bold text-purple-600">{guestCount}</span>
+                  <p className="text-xs text-purple-600">مستاذن</p>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => router.push(`/subjects/${subjectId}/lecture/${lectureId}`)}
+              className="mt-6 px-4 py-2 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium hover:bg-blue-200 transition-colors cursor-pointer"
+            >
+              عرض سجل التدقيق
+            </button>
+          </Card>
+        )}
+
         <div className="flex items-center justify-between gap-1 sm:gap-3">
           <button
             onClick={() => goToStudent(currentIndex - 1)}
@@ -612,26 +630,17 @@ export default function AttendanceSessionPage({
 
           <div className="flex-1 overflow-hidden">
             <div className="flex gap-[2px] justify-center">
-              {sorted.map((_, i) => {
+              {unmarked.map((record, i) => {
                 const dist = Math.abs(i - currentIndex);
                 if (dist > 5) return null;
                 return (
                   <button
-                    key={i}
+                    key={record.id}
                     onClick={() => goToStudent(i)}
                     className={`rounded-full transition-all duration-200 cursor-pointer shrink-0 ${
                       i === currentIndex
                         ? "w-4 h-1.5 sm:w-5 sm:h-2 bg-blue-600"
-                        : "w-1.5 h-1.5 sm:w-2 sm:h-2 hover:scale-125 " +
-                          (visited.has(i)
-                            ? statuses[sorted[i].id] === "present"
-                              ? "bg-green-400"
-                              : statuses[sorted[i].id] === "guest"
-                              ? "bg-purple-400"
-                              : statuses[sorted[i].id] === "pending"
-                              ? "bg-amber-400"
-                              : "bg-red-400"
-                            : "bg-gray-300 dark:bg-slate-600")
+                        : "w-1.5 h-1.5 sm:w-2 sm:h-2 bg-gray-300 dark:bg-slate-600 hover:scale-125"
                     }`}
                     aria-label={`الطالب ${i + 1}`}
                   />
@@ -639,7 +648,7 @@ export default function AttendanceSessionPage({
               })}
             </div>
             <p className="text-center text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
-              {currentIndex + 1} / {totalStudents}
+              {totalStudents > 0 ? `${currentIndex + 1} / ${totalStudents}` : "✓ جميع الطلاب تم تسجيلهم"}
             </p>
           </div>
 
@@ -652,14 +661,14 @@ export default function AttendanceSessionPage({
           </button>
         </div>
 
-        {visited.size === totalStudents &&
-          sorted.every((r) => statuses[r.id] !== undefined) && (
+        {unmarked.length === 0 &&
+          sorted.length > 0 && (
             <div className="pt-4 space-y-4">
-              {pendingCount > 0 && (
+              {sorted.filter((r) => r.status === "pending").length > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-lg font-bold text-amber-800 dark:text-amber-300">
-                      قائمة الانتظار ({pendingCount} طالب)
+                      قائمة الانتظار ({sorted.filter((r) => r.status === "pending").length} طالب)
                     </h3>
                     <button
                       onClick={() => setShowWaitingList(!showWaitingList)}
@@ -671,7 +680,7 @@ export default function AttendanceSessionPage({
                   {showWaitingList && (
                     <div className="space-y-2">
                       {sorted
-                        .filter((r) => statuses[r.id] === "pending")
+                        .filter((r) => r.status === "pending")
                         .map((record) => (
                           <div
                             key={record.id}

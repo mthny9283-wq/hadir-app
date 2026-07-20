@@ -58,6 +58,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (existing.status !== "absent") {
+      const lastAudit = await prisma.auditLog.findFirst({
+        where: { attendanceId, action: "status_change" },
+        orderBy: { performedAt: "desc" },
+      });
+      if (lastAudit && lastAudit.performedBy && lastAudit.performedBy !== sessionId) {
+        return NextResponse.json(
+          { error: "تم تسجيل هذا الطالب بالفعل من مستخدم آخر. قم بتحديث الصفحة لرؤية آخر التغييرات.", currentStatus: existing.status },
+          { status: 409 }
+        );
+      }
+    }
+
     const oldStatus = existing.status;
 
     const updated = await prisma.attendance.update({

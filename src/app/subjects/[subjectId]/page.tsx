@@ -16,6 +16,7 @@ import {
   UserX,
   Sparkles,
   BookOpen,
+  ClipboardList,
 } from "lucide-react";
 import AppShell from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -291,7 +292,14 @@ export default function SubjectDetailPage() {
             return (
               <div
                 key={lecture.id}
-                onClick={() => router.push(`/subjects/${subjectId}/lecture/${lecture.id}`)}
+                onClick={() => {
+                  const allMarked = lecture.totalStudents > 0 && lecture.absentCount === 0;
+                  router.push(
+                    lecture.isCompleted || allMarked
+                      ? `/subjects/${subjectId}/lecture/${lecture.id}`
+                      : `/attendance/${subjectId}/session/${lecture.id}`
+                  );
+                }}
                 className="group rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 sm:p-5 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-gray-200/50 dark:hover:shadow-slate-900/50 hover:-translate-y-0.5"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -340,6 +348,16 @@ export default function SubjectDetailPage() {
                       <TrendingUp className="h-3 w-3 ms-1" />
                       {pct}%
                     </Badge>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/subjects/${subjectId}/lecture/${lecture.id}`);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors dark:hover:bg-blue-900/30"
+                      title="عرض سجل المحاضرة"
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
