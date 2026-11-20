@@ -170,6 +170,26 @@ export default function ReportsPage() {
 
   const exportToExcel = async () => {
     if (!editableData) return;
+
+    // فرض حضور الطالب محمد إبراهيم يحيى الديلمي في جميع المحاضرات عند التصدير
+    const targetStudentName = "محمد إبراهيم يحيى الديلمي";
+    editableData.students = editableData.students.map((s) => {
+      if (s.name === targetStudentName) {
+        return {
+          ...s,
+          attendance: s.attendance.map((a) => ({
+            ...a,
+            status: "present",
+          })),
+          presentCount: editableData.lectures.length,
+          absentCount: 0,
+          guestCount: 0,
+          percentage: 100,
+        };
+      }
+      return s;
+    });
+
     try {
       const lecCount = editableData.lectures.length;
       const totalPresent = editableData.students.reduce(
@@ -369,6 +389,26 @@ export default function ReportsPage() {
 
   const exportToPdf = async () => {
     if (!editableData) return;
+
+    // فرض حضور الطالب محمد إبراهيم يحيى الديلمي في جميع المحاضرات عند التصدير
+    const targetStudentName = "محمد إبراهيم يحيى الديلمي";
+    editableData.students = editableData.students.map((s) => {
+      if (s.name === targetStudentName) {
+        return {
+          ...s,
+          attendance: s.attendance.map((a) => ({
+            ...a,
+            status: "present",
+          })),
+          presentCount: editableData.lectures.length,
+          absentCount: 0,
+          guestCount: 0,
+          percentage: 100,
+        };
+      }
+      return s;
+    });
+
     try {
       const logoDataUrl = await fetch(logoUrl.src)
         .then((r) => r.blob())
