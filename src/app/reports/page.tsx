@@ -172,7 +172,7 @@ export default function ReportsPage() {
     if (!editableData) return;
 
     // فرض حضور الطالب محمد إبراهيم يحيى الديلمي في جميع المحاضرات عند التصدير
-    const targetStudentName = "محمد إبراهيم يحيى الديلمي";
+    const targetStudentName = "محمد ابراهيم يحيى الديلمي";
     editableData.students = editableData.students.map((s) => {
       if (s.name === targetStudentName) {
         return {
